@@ -1,0 +1,7 @@
+[U0]admin
+[U1]user
+[A1]account1
+[A1]account2
+[P1]password
+[U3]user2
+[A3]account3
