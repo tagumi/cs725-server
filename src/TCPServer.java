@@ -1,9 +1,3 @@
-/**
- * Code has been adapted from Computer Networking: A Top-Down Approach Featuring
- * the Internet, second edition, copyright 1996-2002 J.F Kurose and K.W. Ross, 
- * All Rights Reserved.
- **/
-
 import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
@@ -30,6 +24,7 @@ class TCPServer {
     private char listFormat = 'F';
     private String currentDirectory = ".";
     private String currentWorkingDirectory = ".";
+    private boolean checkValidationCD = false;
 
     public enum STATE{WAIT_CONN, WAIT_USER, WAIT_ACC, WAIT_PW, WAIT_COMMAND};
 
@@ -37,7 +32,6 @@ class TCPServer {
 
     public TCPServer() throws Exception
     {
-        String capitalizedSentence;
         String[] parsedCommand;
         String positiveGreeting = "+MIT-XX SFTP Service";
         String negativeGreeting = "-MIT-XX Out to Lunch";
@@ -112,6 +106,25 @@ class TCPServer {
             case "LIST":
                 runListCommand(parsedCommand);
                 break;
+            case "CDIR":
+                runChangeDirCommand(parsedCommand);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void runChangeDirCommand(String[] parsedCommand) throws IOException {
+        try{
+            File directoryPath = new File(getDirectory(parsedCommand));
+        } catch (Exception e) {
+            sendCommand("-Can’t connect to directory because: " + e.toString());
+        }
+
+        if(!checkValidationCD){
+            sendCommand("!Changed working dir to " + getDirectory(parsedCommand));
+        } else {
+            //TODO: send and check for pw and account
         }
     }
 
@@ -197,7 +210,7 @@ class TCPServer {
 
     private boolean validCommand(String command){
         List<String> goodCommands = Arrays.asList("USER", "ACCT", "PASS", "TYPE",
-                "LIST", "CDIR", "KILL", "NAME", "DONE", "RETR", "STOR");
+                "LIST", "CDIR", "KILL", "NAME", "DONE", "RETR", "STOR", "TOBE");
         return goodCommands.contains(command);
     }
 
