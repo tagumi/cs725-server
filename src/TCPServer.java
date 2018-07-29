@@ -7,6 +7,8 @@
 import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Scanner;
 
 class TCPServer {
@@ -24,6 +26,10 @@ class TCPServer {
     private String currentUser = "";
     private String currentAccount = "";
     private boolean loggedIn = false;
+    private char transferType = 'B';
+    private char listFormat = 'F';
+    private String currentDirectory = ".";
+    private String currentWorkingDirectory = ".";
 
     public enum STATE{WAIT_CONN, WAIT_USER, WAIT_ACC, WAIT_PW, WAIT_COMMAND};
 
@@ -84,6 +90,7 @@ class TCPServer {
                     tryPassword(parsedCommand);
                     break;
                 case WAIT_COMMAND:
+                    doCommand(parsedCommand);
                     break;
                 default:
                     break;
@@ -91,6 +98,107 @@ class TCPServer {
 
             System.out.println("Current State is " + serverState.toString() + "\n");
         }
+    }
+
+    private void doCommand(String[] parsedCommand) throws IOException {
+        if(!validCommand(parsedCommand[0])){
+            sendCommand("-5 Bad Message");
+        }
+
+        switch (parsedCommand[0]){
+            case "TYPE":
+                runTypeCommand(parsedCommand);
+                break;
+            case "LIST":
+                runListCommand(parsedCommand);
+                break;
+        }
+    }
+
+    private void runListCommand(String[] parsedCommand) throws IOException {
+        switch(getPrimaryArg(parsedCommand)){
+            case "F":
+                sendListStandard(parsedCommand);
+                break;
+            case "V":
+                sendListVerbose(parsedCommand);
+                break;
+            default:
+                sendCommand("-5 incorrect use of LIST, missing format setting");
+                break;
+        }
+    }
+
+    private void sendListVerbose(String[] parsedCommand) throws IOException {
+        try{
+            File directoryPath = new File(getDirectory(parsedCommand));
+            File[] filesList = directoryPath.listFiles();
+            sendDirectory("+" + getDirectory(parsedCommand));
+            for(int i = 0; i < (filesList.length - 1); i++){
+                String verboseFileMessage = "Name: " + filesList[i].getName();
+                verboseFileMessage += filesList[i].getName() + " Last Modified: ";
+                verboseFileMessage += String.valueOf(filesList[i].lastModified()) + " File Size: ";
+                verboseFileMessage += String.valueOf(filesList[i].length());
+                sendDirectory(verboseFileMessage);
+            }
+            String verboseFileMessage = "Name: " + filesList[(filesList.length-1)].getName();
+            verboseFileMessage += filesList[(filesList.length-1)].getName() + " Last Modified: ";
+            verboseFileMessage += String.valueOf(filesList[(filesList.length-1)].lastModified()) + " File Size: ";
+            verboseFileMessage += String.valueOf(filesList[(filesList.length-1)].length());
+            sendCommand(verboseFileMessage + "\r\n");
+        } catch (Exception e){
+            sendCommand("-" + e.toString());
+        }
+    }
+
+    private void sendListStandard(String[] parsedCommand) throws IOException {
+        try{
+            File directoryPath = new File(getDirectory(parsedCommand));
+            File[] filesList = directoryPath.listFiles();
+            sendDirectory("+" + getDirectory(parsedCommand));
+            for(int i = 0; i < (filesList.length - 1); i++){
+                sendDirectory(filesList[i].getName());
+            }
+            sendCommand(filesList[(filesList.length-1)].getName() + "\r\n");
+        } catch (Exception e){
+            sendCommand("-" + e.toString());
+        }
+    }
+
+    private String getDirectory(String[] parsedCommand){
+        if (parsedCommand.length < 3){
+            return currentDirectory;
+        } else {
+            currentDirectory = parsedCommand[2];
+            return parsedCommand[2];
+        }
+
+    }
+
+    private void runTypeCommand(String[] parsedCommand) throws IOException {
+        switch(getPrimaryArg(parsedCommand)){
+            case "A":
+                transferType = 'A';
+                sendCommand("+Using Ascii mode");
+                break;
+            case "B":
+                transferType = 'B';
+                sendCommand("+Using Binary mode");
+                break;
+            case "C":
+                transferType = 'C';
+                sendCommand("+Using Continuous mode");
+                break;
+            default:
+                sendCommand("-Type not valid");
+                break;
+        }
+    }
+
+    private boolean validCommand(String command){
+        List<String> goodCommands = Arrays.asList("USER", "ACCT", "PASS", "TYPE",
+                "LIST", "CDIR", "KILL", "NAME", "DONE", "RETR", "STOR");
+        return goodCommands.contains(command);
     }
 
 
@@ -111,7 +219,12 @@ class TCPServer {
         if (this.outToClient != null){
             outToClient.writeBytes(command + "\0");
         }
+    }
 
+    private void sendDirectory(String directory) throws IOException {
+        if (this.outToClient != null){
+            outToClient.writeBytes(directory + "\r\n");
+        }
     }
 
     private boolean tryLogin(String[] parsedCommand) throws IOException {
