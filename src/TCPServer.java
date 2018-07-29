@@ -16,6 +16,7 @@ class TCPServer {
     private Socket connectionSocket;
     private DataOutputStream outToClient;
     private BufferedReader inFromClient;
+    private boolean serverRunning = true;
     private String accountsFileName = "accounts.txt";
     private String usersNoPasswordName = "nopass.txt";
     private boolean requireUserID = true;
@@ -33,13 +34,19 @@ class TCPServer {
         String capitalizedSentence;
         String[] parsedCommand;
         String positiveGreeting = "+MIT-XX SFTP Service";
+        String negativeGreeting = "-MIT-XX Out to Lunch";
 
         welcomeSocket = new ServerSocket(42069);
 
         //busy waits for connection
         acceptConnection();
         //sends greeting
-        sendCommand(positiveGreeting);
+        if (serverRunning){
+            sendCommand(positiveGreeting);
+        } else {
+            sendCommand(negativeGreeting);
+        }
+
 
         serverState = STATE.WAIT_USER;
 
