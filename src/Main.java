@@ -1,5 +1,4 @@
 import java.io.*;
-import java.net.*;
 
 public class Main {
 
@@ -20,8 +19,13 @@ public class Main {
         fileWriter.write("[A3]account3\n");
         fileWriter.close();
 
+        String testDelete = "deleteThis.txt";
+
+        FileWriter fileWriter2 = new FileWriter(testDelete);
+        fileWriter2.write("Please please oh just please lord delete me\n");
+        fileWriter2.close();
+
         TCPServer camsTCPServer = new TCPServer();
-        //camsTCPServer.sendCommand(inFromUser.readLine());
 
     }
 }

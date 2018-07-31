@@ -109,9 +109,31 @@ class TCPServer {
             case "CDIR":
                 runChangeDirCommand(parsedCommand);
                 break;
+            case "KILL":
+                runKillCommand(parsedCommand);
             default:
                 break;
         }
+    }
+
+    private void runKillCommand(String[] parsedCommand) throws IOException {
+        String backupDir = currentDirectory;
+        String dir = getDirectoryK(parsedCommand);
+        try{
+            File deleteFile = new File(dir);
+            String fileName = parsedCommand[1];
+            if (deleteFile.exists()){
+                deleteFile.delete();
+                sendCommand("!" + fileName + " deleted");
+            } else {
+                sendCommand("-file does not exist");
+                currentDirectory = backupDir;
+            }
+        } catch (Exception e){
+            sendCommand("-" + e.toString());
+            currentDirectory = backupDir;
+        }
+
     }
 
     private void runChangeDirCommand(String[] parsedCommand) throws IOException {
@@ -119,13 +141,16 @@ class TCPServer {
         String dir = getDirectoryC(parsedCommand);
         try{
             File directoryPath = new File(dir);
-            File[] filesList = directoryPath.listFiles();
-            String testValid = filesList[0].getName();
-            currentDirectory = dir;
-            if(!checkValidationCD){
-                sendCommand("!Changed working dir to " + dir);
+            if (directoryPath.exists()){
+                currentDirectory = dir;
+                if(!checkValidationCD){
+                    sendCommand("!Changed working dir to " + dir);
+                } else {
+                    //TODO: send and check for pw and account
+                }
             } else {
-                //TODO: send and check for pw and account
+                sendCommand("-Cannot connect to directory because: does not exist");
+                currentDirectory = backupDir;
             }
         } catch (Exception e) {
             sendCommand("-Cannot connect to directory because: " + e.toString());
@@ -156,18 +181,24 @@ class TCPServer {
             File directoryPath = new File(dir);
             File[] filesList = directoryPath.listFiles();
             sendDirectory("+" + dir);
-            for(int i = 0; i < (filesList.length - 1); i++){
-                String verboseFileMessage = "Name: ";
-                verboseFileMessage += filesList[i].getName() + " Last Modified: ";
-                verboseFileMessage += String.valueOf(filesList[i].lastModified()) + " File Size: ";
-                verboseFileMessage += String.valueOf(filesList[i].length());
-                sendDirectory(verboseFileMessage);
+            if (filesList.length > 1){
+                for(int i = 0; i < (filesList.length - 1); i++){
+                    String verboseFileMessage = "Name: ";
+                    verboseFileMessage += filesList[i].getName() + " Last Modified: ";
+                    verboseFileMessage += String.valueOf(filesList[i].lastModified()) + " File Size: ";
+                    verboseFileMessage += String.valueOf(filesList[i].length());
+                    sendDirectory(verboseFileMessage);
+                }
             }
-            String verboseFileMessage = "Name: ";
-            verboseFileMessage += filesList[(filesList.length-1)].getName() + " Last Modified: ";
-            verboseFileMessage += String.valueOf(filesList[(filesList.length-1)].lastModified()) + " File Size: ";
-            verboseFileMessage += String.valueOf(filesList[(filesList.length-1)].length());
-            sendCommand(verboseFileMessage + "\r\n");
+            if (filesList.length > 0){
+                String verboseFileMessage = "Name: ";
+                verboseFileMessage += filesList[(filesList.length-1)].getName() + " Last Modified: ";
+                verboseFileMessage += String.valueOf(filesList[(filesList.length-1)].lastModified()) + " File Size: ";
+                verboseFileMessage += String.valueOf(filesList[(filesList.length-1)].length());
+                sendCommand(verboseFileMessage + "\r\n");
+            } else {
+                sendCommand("\r\n");
+            }
         } catch (Exception e){
             sendCommand("-" + e.toString());
             currentDirectory = backupDir;
@@ -181,12 +212,18 @@ class TCPServer {
             File directoryPath = new File(dir);
             File[] filesList = directoryPath.listFiles();
             sendDirectory("+" + dir);
-            for(int i = 0; i < (filesList.length - 1); i++){
-                if (filesList[i] != null){
-                    sendDirectory(filesList[i].getName());
+            if(filesList.length > 1){
+                for(int i = 0; i < (filesList.length - 1); i++){
+                    if (filesList[i] != null){
+                        sendDirectory(filesList[i].getName());
+                    }
                 }
             }
-            sendCommand(filesList[(filesList.length-1)].getName() + "\r\n");
+            if(filesList.length > 0){
+                sendCommand(filesList[(filesList.length-1)].getName() + "\r\n");
+            } else {
+                sendCommand("\r\n");
+            }
         } catch (Exception e){
             sendCommand("-" + e.toString());
             currentDirectory = backupDir;
@@ -201,7 +238,7 @@ class TCPServer {
         } else if (parsedCommand[2].contains(":")) {
             return parsedCommand[2];
         } else {
-            return currentDirectory += parsedCommand[2];
+            return currentDirectory + parsedCommand[2];
         }
     }
 
@@ -217,6 +254,20 @@ class TCPServer {
             return currentDirectory;
         }
     }
+
+    private String getDirectoryK(String[] parsedCommand){
+        if (parsedCommand.length < 2){
+            return null;
+        } else if (parsedCommand[1].charAt(0) == '.') {
+            return currentDirectory + "/" + parsedCommand[1];
+        } else if(parsedCommand[1].contains(":")) {
+            return parsedCommand[1];
+        } else {
+            return currentDirectory +  "/" + parsedCommand[1];
+        }
+    }
+
+
 
     private void runTypeCommand(String[] parsedCommand) throws IOException {
         switch(getPrimaryArg(parsedCommand)){
