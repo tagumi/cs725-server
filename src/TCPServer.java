@@ -115,17 +115,24 @@ class TCPServer {
     }
 
     private void runChangeDirCommand(String[] parsedCommand) throws IOException {
+        String backupDir = currentDirectory;
+        String dir = getDirectoryC(parsedCommand);
         try{
-            File directoryPath = new File(getDirectory(parsedCommand));
+            File directoryPath = new File(dir);
+            File[] filesList = directoryPath.listFiles();
+            String testValid = filesList[0].getName();
+            currentDirectory = dir;
+            if(!checkValidationCD){
+                sendCommand("!Changed working dir to " + dir);
+            } else {
+                //TODO: send and check for pw and account
+            }
         } catch (Exception e) {
-            sendCommand("-Can’t connect to directory because: " + e.toString());
+            sendCommand("-Cannot connect to directory because: " + e.toString());
+            currentDirectory = backupDir;
         }
 
-        if(!checkValidationCD){
-            sendCommand("!Changed working dir to " + getDirectory(parsedCommand));
-        } else {
-            //TODO: send and check for pw and account
-        }
+
     }
 
     private void runListCommand(String[] parsedCommand) throws IOException {
@@ -143,49 +150,72 @@ class TCPServer {
     }
 
     private void sendListVerbose(String[] parsedCommand) throws IOException {
+        String backupDir = currentDirectory;
         try{
-            File directoryPath = new File(getDirectory(parsedCommand));
+            String dir = getDirectoryL(parsedCommand);
+            File directoryPath = new File(dir);
             File[] filesList = directoryPath.listFiles();
-            sendDirectory("+" + getDirectory(parsedCommand));
+            sendDirectory("+" + dir);
             for(int i = 0; i < (filesList.length - 1); i++){
-                String verboseFileMessage = "Name: " + filesList[i].getName();
+                String verboseFileMessage = "Name: ";
                 verboseFileMessage += filesList[i].getName() + " Last Modified: ";
                 verboseFileMessage += String.valueOf(filesList[i].lastModified()) + " File Size: ";
                 verboseFileMessage += String.valueOf(filesList[i].length());
                 sendDirectory(verboseFileMessage);
             }
-            String verboseFileMessage = "Name: " + filesList[(filesList.length-1)].getName();
+            String verboseFileMessage = "Name: ";
             verboseFileMessage += filesList[(filesList.length-1)].getName() + " Last Modified: ";
             verboseFileMessage += String.valueOf(filesList[(filesList.length-1)].lastModified()) + " File Size: ";
             verboseFileMessage += String.valueOf(filesList[(filesList.length-1)].length());
             sendCommand(verboseFileMessage + "\r\n");
         } catch (Exception e){
             sendCommand("-" + e.toString());
+            currentDirectory = backupDir;
         }
     }
 
     private void sendListStandard(String[] parsedCommand) throws IOException {
+        String backupDir = currentDirectory;
         try{
-            File directoryPath = new File(getDirectory(parsedCommand));
+            String dir = getDirectoryL(parsedCommand);
+            File directoryPath = new File(dir);
             File[] filesList = directoryPath.listFiles();
-            sendDirectory("+" + getDirectory(parsedCommand));
+            sendDirectory("+" + dir);
             for(int i = 0; i < (filesList.length - 1); i++){
-                sendDirectory(filesList[i].getName());
+                if (filesList[i] != null){
+                    sendDirectory(filesList[i].getName());
+                }
             }
             sendCommand(filesList[(filesList.length-1)].getName() + "\r\n");
         } catch (Exception e){
             sendCommand("-" + e.toString());
+            currentDirectory = backupDir;
         }
     }
 
-    private String getDirectory(String[] parsedCommand){
+    private String getDirectoryL(String[] parsedCommand){
         if (parsedCommand.length < 3){
             return currentDirectory;
-        } else {
-            currentDirectory = parsedCommand[2];
+        } else if (parsedCommand[2].charAt(0) == '.') {
+            return currentDirectory + "/" + parsedCommand[2];
+        } else if (parsedCommand[2].contains(":")) {
             return parsedCommand[2];
+        } else {
+            return currentDirectory += parsedCommand[2];
         }
+    }
 
+    private String getDirectoryC(String[] parsedCommand){
+        if (parsedCommand.length < 2){
+            return currentDirectory;
+        } else if (parsedCommand[1].charAt(0) == '.') {
+            return currentDirectory + "/" + parsedCommand[1];
+        } else if(parsedCommand[1].contains(":")) {
+            return parsedCommand[1];
+        } else {
+            currentDirectory += "/" + parsedCommand[1];
+            return currentDirectory;
+        }
     }
 
     private void runTypeCommand(String[] parsedCommand) throws IOException {
