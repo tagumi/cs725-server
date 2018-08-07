@@ -1,5 +1,8 @@
 import java.io.*;
 import java.net.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -25,8 +28,10 @@ class TCPServer {
     private String currentDirectory = ".";
     private String currentWorkingDirectory = ".";
     private boolean checkValidationCD = false;
+    private String currentNameFile = ".";
+    private boolean waitTobe = false;
 
-    public enum STATE{WAIT_CONN, WAIT_USER, WAIT_ACC, WAIT_PW, WAIT_COMMAND};
+    public enum STATE{WAIT_CONN, WAIT_USER, WAIT_ACC, WAIT_PW, WAIT_COMMAND, WAIT_TOBE};
 
     private STATE serverState = STATE.WAIT_CONN;
 
@@ -85,7 +90,21 @@ class TCPServer {
                     break;
                 case WAIT_COMMAND:
                     doCommand(parsedCommand);
+                    if (waitTobe){
+                        serverState = STATE.WAIT_TOBE;
+                    }
                     break;
+                case WAIT_TOBE:
+                    //if TOBE else get mad and cancel
+                    if (parsedCommand[0].equals("TOBE")){
+                        doToBe(parsedCommand);
+                        waitTobe = false;
+                        serverState = STATE.WAIT_COMMAND;
+                    } else {
+                        sendCommand("-File wasn't renamed because you never sent TOBE command");
+                        serverState = STATE.WAIT_COMMAND;
+                    }
+
                 default:
                     break;
             }
@@ -111,9 +130,80 @@ class TCPServer {
                 break;
             case "KILL":
                 runKillCommand(parsedCommand);
+            case "NAME":
+                runNameCommand(parsedCommand);
             default:
                 break;
         }
+    }
+
+    private void doToBe(String[] parsedCommand) throws IOException {
+        String oldName = currentNameFile;
+        String newName = getNameFile(parsedCommand);
+        boolean nullFile = false;
+        if (newName == null){
+            nullFile = true;
+        }
+        try {
+            if(!nullFile){
+                //rename file
+                // File (or directory) with old name
+                File file1 = new File(oldName);
+                // File (or directory) with new name
+                File file2 = new File( newName);
+                boolean success = file1.renameTo(file2);
+                if (success){
+                    sendCommand("+" + oldName + " renamed to " + newName);
+                } else {
+                    sendCommand("-File wasn't renamed");
+                }
+            } else {
+                //doesnt exist
+                sendCommand("-File wasn't renamed because null names are not acceptable");
+            }
+        } catch (Exception e) {
+            sendCommand("-File wasn't renamed because " + e.toString());
+        }
+    }
+
+    private void runNameCommand(String[] parsedCommand) throws IOException {
+        String backupName = currentNameFile;
+        String fileName = getNameFile(parsedCommand);
+        boolean nullFile = false;
+        if (fileName == null){
+            nullFile = true;
+        }
+        try {
+            File renameFile = new File(fileName);
+            if(renameFile.exists() && !nullFile){
+                sendCommand("+File exists");
+                currentNameFile = fileName;
+                waitTobe = true;
+            } else {
+                //doesnt exist
+                currentNameFile = backupName;
+                sendCommand("-Can’t find " + parsedCommand[1]);
+            }
+        } catch (Exception e) {
+            sendCommand("-Can’t find " + parsedCommand[1]);
+        }
+
+
+    }
+
+    private String getNameFile(String[] parsedCommand){
+        if ((parsedCommand.length < 2) || (parsedCommand[1] == null)){
+            return null;
+        }
+        String forbiddenChar = "<>:\"/\\|?*";
+        for (int i = 0; i < forbiddenChar.length(); i++){
+            if(parsedCommand[1].contains(Character.toString(forbiddenChar.charAt(i)))){
+                return null;
+            }
+        }
+
+        return parsedCommand[1];
+
     }
 
     private void runKillCommand(String[] parsedCommand) throws IOException {
