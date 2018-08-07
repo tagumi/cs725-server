@@ -31,8 +31,9 @@ class TCPServer {
     private String currentNameFile = ".";
     private boolean waitTobe = false;
     private boolean done = false;
+    private String retrFile = ".";
 
-    public enum STATE{WAIT_CONN, WAIT_USER, WAIT_ACC, WAIT_PW, WAIT_COMMAND, WAIT_TOBE};
+    public enum STATE{WAIT_CONN, WAIT_USER, WAIT_ACC, WAIT_PW, WAIT_COMMAND, WAIT_TOBE, WAIT_RETR};
 
     private STATE serverState = STATE.WAIT_CONN;
 
@@ -107,11 +108,23 @@ class TCPServer {
                         sendCommand("-File wasn't renamed because you never sent TOBE command");
                         serverState = STATE.WAIT_COMMAND;
                     }
-
+                    break;
+                case WAIT_RETR:
+                    //wait for send or stop
+                    if (parsedCommand[0].equals("STOP")){
+                        sendCommand("+ok, RETR aborted");
+                        serverState = STATE.WAIT_COMMAND;
+                    } else if (parsedCommand[0].equals("SEND")) {
+                        sendData();
+                        serverState = STATE.WAIT_COMMAND;
+                    } else {
+                            sendCommand("-File wasn't retrieved because you never sent SEND command");
+                            serverState = STATE.WAIT_COMMAND;
+                    }
+                    break;
                 default:
                     break;
             }
-
             if (done){
                 break;
             }
@@ -143,8 +156,35 @@ class TCPServer {
                 runNameCommand(parsedCommand);
             case "DONE":
                 runDoneCommand(parsedCommand);
+            case "RETR":
+                runRetrieveCommand(parsedCommand);
             default:
                 break;
+        }
+    }
+
+    private void sendData() throws IOException {
+        String content = new String(Files.readAllBytes(Paths.get(retrFile)));
+        sendCommand(content);
+
+    }
+
+    private void runRetrieveCommand(String[] parsedCommand) throws IOException {
+        String backupRETR = retrFile;
+        String filePath = getNameFile(parsedCommand);
+        File file = new File(filePath);
+        if(!file.exists()){
+            sendCommand("-File doesn't exist");
+        } else {
+            try {
+                String fileSize = Long.toString(file.length());
+                sendCommand(fileSize);
+                serverState = STATE.WAIT_RETR;
+                retrFile = filePath;
+            } catch (Exception e) {
+                sendCommand("-File error " + e.toString());
+                retrFile = backupRETR;
+            }
         }
     }
 
@@ -166,7 +206,7 @@ class TCPServer {
                 // File (or directory) with old name
                 File file1 = new File(oldName);
                 // File (or directory) with new name
-                File file2 = new File( newName);
+                File file2 = new File(newName);
                 boolean success = file1.renameTo(file2);
                 if (success){
                     sendCommand("+" + oldName + " renamed to " + newName);
@@ -174,7 +214,7 @@ class TCPServer {
                     sendCommand("-File wasn't renamed");
                 }
             } else {
-                //doesnt exist
+                //doesn't exist
                 sendCommand("-File wasn't renamed because null names are not acceptable");
             }
         } catch (Exception e) {
