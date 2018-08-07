@@ -30,6 +30,7 @@ class TCPServer {
     private boolean checkValidationCD = false;
     private String currentNameFile = ".";
     private boolean waitTobe = false;
+    private boolean done = false;
 
     public enum STATE{WAIT_CONN, WAIT_USER, WAIT_ACC, WAIT_PW, WAIT_COMMAND, WAIT_TOBE};
 
@@ -92,6 +93,8 @@ class TCPServer {
                     doCommand(parsedCommand);
                     if (waitTobe){
                         serverState = STATE.WAIT_TOBE;
+                    } else if (done){
+                        break;
                     }
                     break;
                 case WAIT_TOBE:
@@ -109,8 +112,14 @@ class TCPServer {
                     break;
             }
 
+            if (done){
+                break;
+            }
+
             System.out.println("Current State is " + serverState.toString() + "\n");
         }
+
+        connectionSocket.close();
     }
 
     private void doCommand(String[] parsedCommand) throws IOException {
@@ -132,9 +141,16 @@ class TCPServer {
                 runKillCommand(parsedCommand);
             case "NAME":
                 runNameCommand(parsedCommand);
+            case "DONE":
+                runDoneCommand(parsedCommand);
             default:
                 break;
         }
+    }
+
+    private void runDoneCommand(String[] parsedCommand) throws IOException {
+        sendCommand("+All done");
+        done = true;
     }
 
     private void doToBe(String[] parsedCommand) throws IOException {
