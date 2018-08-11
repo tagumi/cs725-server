@@ -3,6 +3,7 @@ import java.net.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -32,8 +33,10 @@ class TCPServer {
     private boolean waitTobe = false;
     private boolean done = false;
     private String retrFile = ".";
+    private String storFile = ".";
+    private String storMethod = null;
 
-    public enum STATE{WAIT_CONN, WAIT_USER, WAIT_ACC, WAIT_PW, WAIT_COMMAND, WAIT_TOBE, WAIT_RETR};
+    public enum STATE{WAIT_CONN, WAIT_USER, WAIT_ACC, WAIT_PW, WAIT_COMMAND, WAIT_TOBE, WAIT_RETR, WAIT_STOR};
 
     private STATE serverState = STATE.WAIT_CONN;
 
@@ -122,6 +125,16 @@ class TCPServer {
                             serverState = STATE.WAIT_COMMAND;
                     }
                     break;
+                case WAIT_STOR:
+                    //wait for filesize or cancel
+                    if (parsedCommand[0].equals("SIZE")){
+                        sendCommand("+ok, waiting for file");
+                        storeFile();
+                        serverState = STATE.WAIT_COMMAND;
+                    } else {
+                        sendCommand("-Missing SIZE start again");
+                        serverState = STATE.WAIT_COMMAND;
+                    }
                 default:
                     break;
             }
@@ -152,14 +165,143 @@ class TCPServer {
                 break;
             case "KILL":
                 runKillCommand(parsedCommand);
+                break;
             case "NAME":
                 runNameCommand(parsedCommand);
+                break;
             case "DONE":
                 runDoneCommand(parsedCommand);
+                break;
             case "RETR":
                 runRetrieveCommand(parsedCommand);
+                break;
+            case "STOR":
+                runStoreCommand(parsedCommand);
+                break;
             default:
                 break;
+        }
+    }
+
+
+    private void storeFile() throws IOException {
+        try {
+            String clientCommand = getClientCommand(inFromClient);
+            byte[] data = clientCommand.getBytes();
+            //store or append based on exist
+
+            switch (storMethod){
+                case "NEW":
+                    //do stuff
+                    if(fileExists(storFile)){
+                        while(fileExists(storFile)){
+                            storFile += "_new";
+                        }
+                    }
+                    Path file = Paths.get(storFile);
+                    Files.write(file, data);
+                    sendCommand("+Saved " + storFile);
+                    break;
+                case "OLD":
+                    //do stuff
+                    Path file1 = Paths.get(storFile);
+                    Files.write(file1, data);
+                    sendCommand("+Saved " + storFile);
+                    break;
+                case "APP":
+                    //do stuff
+                    Files.write(Paths.get(storFile), data,StandardOpenOption.CREATE,StandardOpenOption.APPEND);
+                    sendCommand("+Saved " + storFile);
+                    break;
+                default:
+                    sendCommand("-Couldn't save because error occured");
+                    break;
+            }
+
+        } catch (Exception e){
+            sendCommand("-Couldn't save because  " + e.toString());
+        }
+
+    }
+
+    private void runStoreCommand(String[] parsedCommand) throws IOException {
+        if (parsedCommand.length < 3){
+            storMethod = null;
+            //send bad command message
+            sendCommand("-Missing Parameters");
+        } else {
+            storMethod = getStoreMethod(parsedCommand[1]);
+            if (storMethod == null){
+                //send bad command message
+                sendCommand("-Forgot Store Method Parameter");
+            } else {
+                storFile = getStoreFile(parsedCommand[2]);
+                if (storMethod.equals("NEW")){
+                    if (fileExists(storFile)){
+                        sendCommand("+File exists, will create new generation of file");
+                    } else {
+                        sendCommand("+File does not exist, will create new file");
+                    }
+                    serverState = STATE.WAIT_STOR;
+                } else if(storMethod.equals("OLD")){
+                    if (fileExists(storFile)){
+                        sendCommand("+Will write over old file");
+                    } else {
+                        sendCommand("+Will create new file");
+                    }
+                    serverState = STATE.WAIT_STOR;
+                } else if (storMethod.equals("APP")){
+                    if (fileExists(storFile)){
+                        sendCommand("+Will append to file");
+                    } else {
+                        sendCommand("+Will create file");
+                    }
+                    serverState = STATE.WAIT_STOR;
+                } else {
+                    sendCommand("-Error with store method");
+                }
+            }
+        }
+    }
+
+    private boolean fileExists(String storFile) {
+        File file = new File(storFile);
+        if(file.exists()){
+            return true;
+        } else {
+            return false;
+        }
+
+    }
+
+    private String getStoreFile(String s) {
+        if (s == null){
+            return null;
+        }
+        String forbiddenChar = "<>:\"/\\|?*";
+        for (int i = 0; i < forbiddenChar.length(); i++){
+            if(s.contains(Character.toString(forbiddenChar.charAt(i)))){
+                return null;
+            }
+        }
+
+        return s;
+    }
+
+    private String getStoreMethod(String s) {
+        if (s == null){
+            return null;
+        } else {
+            switch(s){
+                case "NEW":
+                    return s;
+                case "OLD":
+                    return s;
+                case "APP":
+                    return s;
+                default:
+                    return null;
+            }
         }
     }
 
